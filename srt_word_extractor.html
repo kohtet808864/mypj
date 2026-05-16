@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word SRT — 1 word per block</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
+
+:root {
+  --bg:       #f5f2eb;
+  --ink:      #1a1814;
+  --ink2:     #5a5650;
+  --ink3:     #a8a49e;
+  --rule:     #d8d4cc;
+  --accent:   #c0392b;
+  --accent2:  #2c6e49;
+  --surface:  #edeae2;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Paper texture ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 27px, var(--rule) 27px, var(--rule) 28px);
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Header ── */
+header {
+  position: relative;
+  z-index: 1;
+  padding: 32px 40px 28px;
+  border-bottom: 2px solid var(--ink);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.header-left h1 {
+  font-family: var(--mono);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.header-left h1 em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.header-left .sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--ink2);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+
+.header-right {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink3);
+  text-align: right;
+  line-height: 1.8;
+}
+
+/* ── Layout ── */
+.workspace {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 0;
+}
+
+/* ── Left panel ── */
+.left {
+  border-right: 1px solid var(--rule);
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  overflow-y: auto;
+}
+
+.field-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  margin-bottom: 8px;
+}
+
+/* Drop zone */
+.dropzone {
+  border: 1.5px dashed var(--rule);
+  border-radius: 2px;
+  padding: 28px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.18s;
+  background: transparent;
+  position: relative;
+}
+
+.dropzone:hover, .dropzone.drag-over {
+  border-color: var(--accent);
+  background: rgba(192,57,43,0.03);
+}
+
+.dropzone.drag-over .drop-arrow { transform: translateY(4px); }
+
+.drop-arrow {
+  font-size: 22px;
+  display: block;
+  margin-bottom: 8px;
+  color: var(--ink3);
+  transition: transform 0.2s;
+}
+
+.dropzone p {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink2);
+  line-height: 1.7;
+}
+
+.dropzone p strong {
+  color: var(--ink);
+  display: block;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+#file-input { display: none; }
+
+/* File loaded state */
+.file-loaded {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent2);
+  border-radius: 2px;
+}
+
+.file-loaded.visible { display: flex; }
+
+.file-loaded .fname {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-loaded .fmeta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink2);
+}
+
+/* Stats */
+.stats-box {
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.stats-box.visible { display: flex; }
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 8px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+}
+.stat-row:last-child { border-bottom: none; }
+
+.stat-row .s-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+
+.stat-row .s-val {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.stat-row.accent .s-val { color: var(--accent); }
+
+/* Extract button */
+.btn-extract {
+  width: 100%;
+  padding: 13px;
+  background: var(--ink);
+  color: var(--bg);
+  border: none;
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-top: auto;
+}
+
+.btn-extract:hover:not(:disabled) {
+  background: var(--accent);
+  letter-spacing: 0.14em;
+}
+
+.btn-extract:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ── Right panel ── */
+.right {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.output-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 28px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface);
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.output-bar .status {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--ink3);
+}
+
+.status-dot.ready { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+
+.btn-dl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-dl:hover:not(:disabled) {
+  border-color: var(--accent2);
+  color: var(--accent2);
+}
+
+.btn-dl:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Output area */
+.output-area {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.empty-icon {
+  font-family: var(--mono);
+  font-size: 48px;
+  color: var(--rule);
+  letter-spacing: -0.05em;
+}
+
+.empty-state p {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink3);
+  text-align: center;
+  line-height: 1.8;
+  max-width: 200px;
+}
+
+#srt-out {
+  display: none;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 300;
+  line-height: 1.9;
+  color: var(--ink);
+  padding: 24px 28px;
+  resize: none;
+}
+
+#srt-out.visible { display: block; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink3); }
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--ink);
+  color: var(--bg);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 10px 16px;
+  border-radius: 2px;
+  z-index: 100;
+  display: none;
+  animation: slideUp 0.2s ease;
+  max-width: 280px;
+}
+
+.toast.visible { display: block; }
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>WORD<em>→</em>SRT</h1>
+    <div class="sub">1 word per subtitle block · AssemblyAI JSON</div>
+  </div>
+  <div class="header-right">
+    reads data.words[]<br>
+    start / end in ms
+  </div>
+</header>
+
+<div class="workspace">
+
+  <div class="left">
+
+    <div>
+      <div class="field-label">01 · Source</div>
+      <div class="dropzone" id="dropzone">
+        <span class="drop-arrow">↓</span>
+        <p><strong>Drop JSON here</strong>or click to browse</p>
+      </div>
+      <input type="file" id="file-input" accept=".json">
+    </div>
+
+    <div class="file-loaded" id="file-loaded">
+      <div class="fname" id="fname">—</div>
+      <div class="fmeta" id="fmeta">—</div>
+    </div>
+
+    <div class="stats-box" id="stats-box">
+      <div class="stat-row accent">
+        <span class="s-label">Words</span>
+        <span class="s-val" id="s-words">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="s-label">Duration</span>
+        <span class="s-val" id="s-dur">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="s-label">First word</span>
+        <span class="s-val" id="s-first">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="s-label">Last word</span>
+        <span class="s-val" id="s-last">—</span>
+      </div>
+    </div>
+
+    <button class="btn-extract" id="btn-extract" disabled>Extract SRT</button>
+
+  </div>
+
+  <div class="right">
+    <div class="output-bar">
+      <div class="status">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">waiting for file</span>
+      </div>
+      <button class="btn-dl" id="btn-dl" disabled>↓ download .srt</button>
+    </div>
+    <div class="output-area">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">[ ]</div>
+        <p>Drop an AssemblyAI JSON and hit Extract SRT.</p>
+      </div>
+      <textarea id="srt-out" spellcheck="false" readonly></textarea>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function msToSrt(ms) {
+  ms = Math.max(0, Math.round(ms));
+  const h   = Math.floor(ms / 3600000);
+  const m   = Math.floor((ms % 3600000) / 60000);
+  const s   = Math.floor((ms % 60000) / 1000);
+  const mil = ms % 1000;
+  return `${pad2(h)}:${pad2(m)}:${pad2(s)},${pad3(mil)}`;
+}
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+function pad3(n) { return String(n).padStart(3, '0'); }
+
+function msToDuration(ms) {
+  const total = Math.round(ms / 1000);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}m ${pad2(s)}s`;
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('visible');
+  setTimeout(() => el.classList.remove('visible'), 3500);
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+let words = []; // { text, start, end }
+
+// ── Parse ─────────────────────────────────────────────────────────────────────
+
+function loadJSON(raw) {
+  let data;
+  try { data = JSON.parse(raw); } catch(e) {
+    toast('Invalid JSON: ' + e.message); return false;
+  }
+
+  if (!Array.isArray(data.words) || !data.words.length) {
+    toast('No top-level "words" array found in JSON.'); return false;
+  }
+
+  words = [];
+  for (const w of data.words) {
+    const text = (w.text || w.word || '').trim();
+    if (!text) continue;
+    words.push({ text, start: w.start || 0, end: w.end || 0 });
+  }
+
+  if (!words.length) { toast('words[] array is empty.'); return false; }
+  return true;
+}
+
+// ── Generate SRT ──────────────────────────────────────────────────────────────
+
+function generateSRT() {
+  const lines = [];
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    lines.push(String(i + 1));
+    lines.push(`${msToSrt(w.start)} --> ${msToSrt(w.end)}`);
+    lines.push(w.text);
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+// ── UI ────────────────────────────────────────────────────────────────────────
+
+const dropzone   = document.getElementById('dropzone');
+const fileInput  = document.getElementById('file-input');
+const btnExtract = document.getElementById('btn-extract');
+const btnDl      = document.getElementById('btn-dl');
+const srtOut     = document.getElementById('srt-out');
+const emptyState = document.getElementById('empty-state');
+
+function onFile(file) {
+  if (!file || !file.name.endsWith('.json')) {
+    toast('Please drop a .json file.'); return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    if (!loadJSON(e.target.result)) return;
+
+    // File info
+    document.getElementById('file-loaded').classList.add('visible');
+    document.getElementById('fname').textContent = file.name;
+    document.getElementById('fmeta').textContent =
+      `${words.length.toLocaleString()} words · ${(file.size / 1024).toFixed(0)} KB`;
+
+    // Stats
+    const first = words[0];
+    const last  = words[words.length - 1];
+    document.getElementById('stats-box').classList.add('visible');
+    document.getElementById('s-words').textContent = words.length.toLocaleString();
+    document.getElementById('s-dur').textContent   = msToDuration(last.end - first.start);
+    document.getElementById('s-first').textContent = first.text;
+    document.getElementById('s-last').textContent  = last.text;
+
+    document.getElementById('status-text').textContent = 'file loaded — ready';
+    btnExtract.disabled = false;
+  };
+  reader.readAsText(file);
+}
+
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => onFile(fileInput.files[0]));
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag-over');
+  onFile(e.dataTransfer.files[0]);
+});
+
+btnExtract.addEventListener('click', () => {
+  const srt = generateSRT();
+  srtOut.value = srt;
+  srtOut.classList.add('visible');
+  emptyState.style.display = 'none';
+
+  document.getElementById('status-dot').classList.add('ready');
+  document.getElementById('status-text').textContent =
+    `${words.length.toLocaleString()} blocks · 1 word each`;
+
+  btnDl.disabled = false;
+});
+
+btnDl.addEventListener('click', () => {
+  const srt = srtOut.value;
+  if (!srt) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([srt], { type: 'text/plain' }));
+  a.download = 'words.srt';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>
