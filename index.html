@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Subtitle Editor - Pro Edition</title>
+    <style>
+        :root {
+            --bg: #121212; --text: #e0e0e0; --accent: #00adb5;
+            --border: #333; --highlight: #ffd700; --modal-bg: #1e1e1e;
+        }
+
+        html, body { height: 100%; margin: 0; overflow: hidden; background-color: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; }
+
+        header { flex-shrink: 0; height: 70px; padding: 0 20px; background: #1f1f1f; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); z-index: 1000; }
+        .controls-left { display: flex; gap: 15px; align-items: center; }
+        .file-input-group { display: flex; flex-direction: column; }
+        label { font-size: 0.65rem; color: #888; text-transform: uppercase; }
+        input[type="file"] { font-size: 0.8rem; width: 150px; }
+        #download-btn { display: none; background: #27ae60; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+
+        #search-wrapper { position: relative; display: flex; align-items: center; gap: 15px; }
+        #search-container { display: flex; align-items: center; gap: 8px; background: #2a2a2a; padding: 5px 15px; border-radius: 20px; border: 1px solid #444; }
+        #searchInput { background: transparent; border: none; color: white; outline: none; width: 140px; }
+        .nav-btn { background: #444; border: none; color: white; cursor: pointer; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; }
+        #result-count { font-size: 0.75rem; color: #888; min-width: 45px; text-align: center; }
+        
+        #search-dropdown { position: absolute; top: 110%; left: 0; width: 200px; background: #333; border: 1px solid var(--accent); border-radius: 8px; display: none; flex-direction: column; z-index: 1001; }
+        .drop-item { padding: 8px 15px; cursor: pointer; font-size: 0.9rem; border-bottom: 1px solid #444; }
+        .drop-item:hover { background: var(--accent); color: black; }
+
+        .anchor-group { display: flex; gap: 10px; border-right: 1px solid #444; padding-right: 15px; }
+        .anchor-control { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .switch { position: relative; display: inline-block; width: 34px; height: 18px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #444; transition: .4s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 12px; width: 12px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(16px); }
+        .anchor-label { font-size: 0.55rem; color: #aaa; margin-top: 3px; font-weight: bold; }
+
+        #player-container { flex-grow: 1; background: #000; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+        video { width: 100%; height: 100%; max-height: 45vh; object-fit: contain; }
+
+        #subtitle-editor { height: 45vh; flex-shrink: 0; background: #181818; border-top: 3px solid var(--accent); overflow-y: auto; padding-bottom: 80px; }
+        .sub-row { display: flex; gap: 15px; padding: 12px 20px; border-bottom: 1px solid #222; transition: background 0.3s; }
+        .sub-row.active { background: #1a2a2a; border-left: 5px solid var(--accent); }
+        .sub-row.search-focus { background: #3d3d00; outline: 1px solid var(--highlight); }
+        .sub-row.in-anchor-area { border-right: 3px solid #27ae60; } 
+        
+        .timestamp { color: var(--accent); font-family: monospace; min-width: 130px; cursor: pointer; font-size: 0.9rem; padding-top: 10px; }
+        .text-edit { flex: 1; background: #222; color: white; border: 1px solid #444; outline: none; font-size: 1.1rem; padding: 10px; resize: none; border-radius: 4px; line-height: 1.6; }
+
+        #quick-list { position: fixed; background: #222; border: 1px solid var(--accent); display: none; flex-direction: column; z-index: 9999; max-height: 350px; overflow-y: auto; border-radius: 6px; width: 180px; box-shadow: 0 8px 20px #000; }
+        .quick-item { background: transparent; border: none; color: white; padding: 10px; cursor: pointer; text-align: left; border-bottom: 1px solid #333; }
+        .quick-item:hover { background: var(--accent); color: black; }
+
+        #shin-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 2000; }
+        #shin-modal-box { background: var(--modal-bg); width: 850px; max-width: 95%; height: 420px; border: 2px solid var(--accent); border-radius: 12px; display: flex; flex-direction: column; position: relative; }
+        #card-container { flex: 1; display: flex; overflow: hidden; position: relative; align-items: center; justify-content: center; }
+        .shin-card { min-width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 40px; box-sizing: border-box; }
+        .shin-card.active { display: flex; }
+        .card-meta { color: var(--accent); font-family: monospace; margin-bottom: 20px; font-size: 1.1rem; }
+        .card-text { font-size: 1.8rem; line-height: 1.6; color: #fff; text-align: center; }
+        .card-edit-box { width: 90%; background: #000; color: #fff; border: 1px solid var(--accent); padding: 15px; font-size: 1.6rem; outline: none; display: none; text-align: center; }
+        .selection-indicator { margin-top: 30px; font-weight: bold; padding: 10px 25px; border-radius: 25px; border: 2px solid #444; color: #666; transition: 0.3s; }
+        .selected-card .selection-indicator { background: var(--accent); border-color: var(--accent); color: #000; }
+        .selected-card .selection-indicator::after { content: " (SELECTED)"; }
+        .unselected-card .selection-indicator::after { content: " (SKIPPED)"; }
+        .nav-hint { position: absolute; bottom: 15px; width: 100%; text-align: center; color: #555; font-size: 0.85rem; }
+        .counter { position: absolute; top: 20px; right: 25px; color: var(--accent); font-weight: bold; font-family: monospace; }
+        .shin-highlight { background: rgba(255, 215, 0, 0.4); color: var(--highlight); padding: 0 4px; border-radius: 4px; }
+        .modal-btns { padding: 20px; display: flex; justify-content: center; gap: 20px; border-top: 1px solid #333; background: #1a1a1a; border-radius: 0 0 12px 12px; }
+    </style>
+</head>
+<body>
+
+<div id="shin-modal-overlay">
+    <div id="shin-modal-box">
+        <div class="counter" id="shin-counter">0 / 0</div>
+        <div id="card-container"></div>
+        <div class="nav-hint"><b>A / D</b>: Navigate | <b>Space</b>: Toggle | <b>Enter</b>: Edit | <b>Esc</b>: Close</div>
+        <div class="modal-btns">
+            <button class="nav-btn" style="background:#444; padding: 8px 20px;" onclick="closeShinModal()">Cancel</button>
+            <button class="nav-btn" style="background:var(--accent); color:black; font-weight:bold; padding: 8px 30px;" onclick="applyShinChanges()">APPLY ALL SELECTED</button>
+        </div>
+    </div>
+</div>
+
+<header>
+    <div class="controls-left">
+        <div class="file-input-group"><label>1. Video</label><input type="file" id="videoInput" accept="video/*"></div>
+        <div class="file-input-group"><label>2. Subtitles</label><input type="file" id="subInput" accept=".srt,.ass"></div>
+        <button id="download-btn">DOWNLOAD</button>
+    </div>
+
+    <div id="search-wrapper">
+        <div class="anchor-group">
+            <div class="anchor-control">
+                <label class="switch"><input type="checkbox" id="autoReplaceToggle"><span class="slider"></span></label>
+                <span class="anchor-label">AUTO PRONOUNS</span>
+            </div>
+            <div class="anchor-control">
+                <label class="switch"><input type="checkbox" id="anchorToggle"><span class="slider"></span></label>
+                <span class="anchor-label">AREA (+/-10)</span>
+            </div>
+            <div class="anchor-control">
+                <label class="switch"><input type="checkbox" id="strictToggle"><span class="slider"></span></label>
+                <span class="anchor-label">SAME BLOCK</span>
+            </div>
+        </div>
+        <div id="search-container">
+            <input type="text" id="searchInput" placeholder="Search..." autocomplete="off">
+            <span id="result-count"></span>
+            <button class="nav-btn" id="prevBtn">&larr;</button>
+            <button class="nav-btn" id="nextBtn">&rarr;</button>
+        </div>
+        <div id="search-dropdown">
+            <div class="drop-item" onclick="quickSearch('ငါ')">ငါ</div>
+            <div class="drop-item" onclick="quickSearch('ငါ့')">ငါ့</div>
+            <div class="drop-item" onclick="quickSearch('နင်')">နင်</div>
+            <div class="drop-item" onclick="quickSearch('နင့်')">နင့်</div>
+            <div class="drop-item" onclick="quickSearch('မင်း')">မင်း</div>
+            <div class="drop-item" onclick="quickSearch('ခင်ဗျား')">ခင်ဗျား</div>
+            <div class="drop-item" onclick="quickSearch('ကျွန်တော်')">ကျွန်တော်</div>
+            <div class="drop-item" onclick="quickSearch('ကျွန်မ')">ကျွန်မ</div>
+            <div class="drop-item" onclick="quickSearch('ကျွန်တော့်')">ကျွန်တော့်</div>
+            <div class="drop-item" onclick="quickSearch('ရှင့်')">ရှင့်</div>
+            <div class="drop-item" onclick="quickSearch('ကျမ')">ကျမ</div>
+            <div class="drop-item" onclick="quickSearch('ကျတော်')">ကျတော်</div>
+            <div class="drop-item" onclick="openShinModal()">ရှင် (Review Box)</div>
+            <div class="drop-item" onclick="quickSearch('သာဓု')">သာဓု</div>
+        </div>
+    </div>
+</header>
+
+<div id="player-container"><video id="mainVideo" controls><track id="mainTrack" kind="subtitles" default></video></div>
+<div id="subtitle-editor"></div>
+<div id="quick-list"></div>
+
+<script>
+    const video = document.getElementById('mainVideo');
+    const editor = document.getElementById('subtitle-editor');
+    const quickList = document.getElementById('quick-list');
+    const shinModal = document.getElementById('shin-modal-overlay');
+    const cardContainer = document.getElementById('card-container');
+    const searchInput = document.getElementById('searchInput');
+    const anchorToggle = document.getElementById('anchorToggle');
+    const strictToggle = document.getElementById('strictToggle');
+    const autoReplaceToggle = document.getElementById('autoReplaceToggle'); // NEW TOGGLE
+
+    let subData = [], shinIndices = [], currentCardIdx = 0, selectedIndices = new Set();
+    let originalFormat = 'srt', activeSelection = { start: 0, end: 0, textarea: null };
+    let searchResults = [], currentSearchIdx = -1;
+
+    const ANCHOR_WORDS = ["အမေ", "အဖေ", "ဦးလေး", "‌အဒေါ်", "ဒေါ်", "သခင်"];
+    const AREA_RADIUS = 10; 
+    let validAnchorIndices = new Set(); 
+    const burmeseWords = ["ကျွန်တော်", "ကျွန်တော့်", "ကျွန်မ", "ကျွန်မရဲ့", "ငါ", "ငါ့", "ငါ့ရဲ့", "သား", "သားရဲ့", "သမီး", "သမီးရဲ့", "နင်", "နင့်", "နင့်ရဲ့", "မင်း", "မင်းရဲ့", "ခင်ဗျား", "ခင်ဗျားရဲ့", "အန်တီ", "အမေ", "အဖေ", "ဦး", "ဦးလေး"];
+
+    // Utility to run replacements on a single string
+    function processSubtitles(text) {
+        return text.replace(/ကျွန်တော့်|ကျွန်မရဲ့/g, "ငါ့").replace(/ကျွန်တော်|ကျွန်မ/g, "ငါ").replace(/ရှင့်/g, "နင့်");
+    }
+
+    // New Event Listener for the Auto Replace Toggle
+    autoReplaceToggle.onchange = () => {
+        const isEnabled = autoReplaceToggle.checked;
+        subData.forEach((s) => {
+            if (isEnabled) {
+                // Apply replacements to the ORIGINAL text
+                s.text = processSubtitles(s.originalText);
+            } else {
+                // Revert to the ORIGINAL text
+                s.text = s.originalText;
+            }
+        });
+        renderEditor();
+        updateTrack();
+    };
+
+    function calculateAnchorAreas() {
+        validAnchorIndices.clear();
+        subData.forEach((s, idx) => {
+            if (ANCHOR_WORDS.some(word => s.text.includes(word))) {
+                let start = Math.max(0, idx - AREA_RADIUS);
+                let end = Math.min(subData.length - 1, idx + AREA_RADIUS);
+                for(let i = start; i <= end; i++) validAnchorIndices.add(i);
+            }
+        });
+        document.querySelectorAll('.sub-row').forEach(row => {
+            const idx = parseInt(row.querySelector('.text-edit').dataset.index);
+            if(validAnchorIndices.has(idx)) row.classList.add('in-anchor-area');
+        });
+    }
+
+    function performSearch() {
+        const term = searchInput.value.trim();
+        
+        let lastTimestamp = video.currentTime; 
+        if (searchResults.length > 0 && currentSearchIdx !== -1) {
+            lastTimestamp = subData[searchResults[currentSearchIdx]].startTimeSeconds;
+        }
+
+        searchResults = []; 
+        document.querySelectorAll('.sub-row').forEach(r => r.classList.remove('search-focus'));
+        
+        if (!term) { 
+            document.getElementById('result-count').textContent = ""; 
+            currentSearchIdx = -1;
+            return; 
+        }
+        
+        subData.forEach((s, i) => { 
+            const hasTerm = s.text.includes(term);
+            if (hasTerm) {
+                let match = true;
+                if (anchorToggle.checked && !validAnchorIndices.has(i)) match = false;
+                if (strictToggle.checked) {
+                    const hasAnchorInThisBlock = ANCHOR_WORDS.some(anchor => s.text.includes(anchor));
+                    if (!hasAnchorInThisBlock) match = false;
+                }
+                if (match) searchResults.push(i);
+            } 
+        });
+
+        if (searchResults.length > 0) {
+            let closestInListIdx = 0;
+            let minDiff = Infinity;
+
+            searchResults.forEach((subIdx, listIdx) => {
+                const diff = Math.abs(subData[subIdx].startTimeSeconds - lastTimestamp);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closestInListIdx = listIdx;
+                }
+            });
+
+            currentSearchIdx = closestInListIdx;
+            updateSearchUI(); 
+        } else { 
+            currentSearchIdx = -1;
+            document.getElementById('result-count').textContent = "0/0"; 
+        }
+    }
+
+    function updateSearchUI() {
+        if (currentSearchIdx === -1 || !searchResults.length) return;
+
+        document.getElementById('result-count').textContent = `${currentSearchIdx + 1}/${searchResults.length}`;
+        const subIdx = searchResults[currentSearchIdx];
+        const targetRow = document.getElementById(`sub-${subIdx}`);
+        
+        document.querySelectorAll('.sub-row').forEach(r => r.classList.remove('search-focus'));
+        targetRow.classList.add('search-focus');
+        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        video.currentTime = subData[subIdx].startTimeSeconds;
+    }
+
+    function navigateSearch(dir) {
+        if (!searchResults.length) return;
+        if (dir === 'next') currentSearchIdx = (currentSearchIdx + 1) % searchResults.length;
+        else currentSearchIdx = (currentSearchIdx - 1 + searchResults.length) % searchResults.length;
+        updateSearchUI();
+    }
+
+    document.addEventListener('keydown', (e) => {
+        const activeEl = document.activeElement;
+        const key = e.key.toLowerCase();
+
+        if (shinModal.style.display === 'flex') {
+            const card = document.getElementById(`card-${currentCardIdx}`);
+            const editBox = card.querySelector('.card-edit-box');
+            if (editBox.style.display === 'block') {
+                if (e.key === 'Enter') {
+                    subData[shinIndices[currentCardIdx]].text = editBox.value;
+                    subData[shinIndices[currentCardIdx]].originalText = editBox.value; // Update original if manually edited
+                    card.querySelector('.card-text').innerHTML = editBox.value.replace(/ရှင်/g, '<span class="shin-highlight">ရှင်</span>');
+                    editBox.style.display = 'none'; card.querySelector('.card-text').style.display = 'block';
+                    renderEditor();
+                }
+                if (key === 's' && editBox.selectionStart !== editBox.selectionEnd) { e.preventDefault(); showQuickMenu(editBox); }
+                return;
+            }
+            if (key === 'd' || e.key === 'ArrowRight') { currentCardIdx = (currentCardIdx + 1) % shinIndices.length; updateCardView(); }
+            if (key === 'a' || e.key === 'ArrowLeft') { currentCardIdx = (currentCardIdx - 1 + shinIndices.length) % shinIndices.length; updateCardView(); }
+            if (e.key === ' ') { e.preventDefault(); const idx = shinIndices[currentCardIdx]; if (selectedIndices.has(idx)) { selectedIndices.delete(idx); card.classList.replace('selected-card', 'unselected-card'); } else { selectedIndices.add(idx); card.classList.replace('unselected-card', 'selected-card'); } }
+            if (e.key === 'Enter') { card.querySelector('.card-text').style.display = 'none'; editBox.style.display = 'block'; editBox.focus(); }
+            if (e.key === 'Escape') closeShinModal();
+        } 
+        else if (searchResults.length > 0) {
+            const isNavKey = (key === 'd' || e.key === 'ArrowRight' || key === 'a' || e.key === 'ArrowLeft');
+            if (isNavKey && activeEl.id !== 'searchInput') {
+                if (activeEl.classList.contains('text-edit')) { activeEl.blur(); }
+                e.preventDefault(); 
+                if (key === 'd' || e.key === 'ArrowRight') navigateSearch('next');
+                else navigateSearch('prev');
+            }
+        }
+
+        if (key === 's' && activeEl.classList.contains('text-edit')) {
+            if (activeEl.selectionStart !== activeEl.selectionEnd) { e.preventDefault(); showQuickMenu(activeEl); }
+        }
+    });
+
+    function showQuickMenu(el) {
+        activeSelection = { start: el.selectionStart, end: el.selectionEnd, textarea: el };
+        const rect = el.getBoundingClientRect();
+        quickList.style.display = 'flex';
+        quickList.style.left = `${rect.left}px`;
+        quickList.style.top = `${Math.min(rect.top + 30, window.innerHeight - 360)}px`;
+    }
+
+    burmeseWords.forEach(word => {
+        const btn = document.createElement('button'); btn.className = 'quick-item'; btn.textContent = word;
+        btn.onclick = () => {
+            const { start, end, textarea } = activeSelection;
+            const newVal = textarea.value.substring(0, start) + word + textarea.value.substring(end);
+            textarea.value = newVal;
+            if(textarea.dataset.index) {
+                const i = textarea.dataset.index;
+                subData[i].text = newVal;
+                // Note: We do NOT update originalText here, assuming manual edit overrides auto-toggle state
+            }
+            quickList.style.display = 'none'; updateTrack(); textarea.focus();
+        };
+        quickList.appendChild(btn);
+    });
+
+    // Modified Parsing to store originalText
+    function parseSRT(t) { 
+        subData = []; 
+        t.trim().replace(/\r/g,'').split(/\n\n+/).forEach(block => { 
+            const lines = block.split('\n'); 
+            const timeLine = lines.find(l => l.includes('-->')); 
+            if(timeLine) { 
+                const rawText = lines.slice(lines.indexOf(timeLine)+1).join('\n');
+                subData.push({ 
+                    start: timeLine.split(' --> ')[0], 
+                    end: timeLine.split(' --> ')[1], 
+                    text: rawText, 
+                    originalText: rawText, // SAVE BTS
+                    startTimeSeconds: tToS(timeLine.split(' --> ')[0]) 
+                }); 
+            } 
+        }); 
+    }
+
+    function parseASS(t) { 
+        subData = []; 
+        let ev = false; 
+        t.split('\n').forEach(l => { 
+            if(l.startsWith('[Events]')) ev = true; 
+            if(ev && l.startsWith('Dialogue:')) { 
+                const p = l.split(','); 
+                const txt = p.slice(9).join(',').replace(/\{.*?\}/g, '').replace(/\\N/g, '\n').trim(); 
+                subData.push({ 
+                    start: p[1], 
+                    end: p[2], 
+                    text: txt, 
+                    originalText: txt, // SAVE BTS
+                    startTimeSeconds: tToS(p[1]) 
+                }); 
+            } 
+        }); 
+    }
+
+    function tToS(t) { const p = t.replace(',','.').split(':'); return p.length === 3 ? p[0]*3600 + p[1]*60 + p[2]*1 : p[0]*60 + p[1]*1; }
+    
+    function renderEditor() {
+        editor.innerHTML = '';
+        subData.forEach((s, i) => {
+            const row = document.createElement('div'); row.className = 'sub-row'; row.id = `sub-${i}`;
+            if(validAnchorIndices.has(i)) row.classList.add('in-anchor-area');
+            row.innerHTML = `<div class="timestamp">${s.start}</div><textarea class="text-edit" data-index="${i}">${s.text}</textarea>`;
+            row.querySelector('textarea').oninput = (e) => { subData[i].text = e.target.value; updateTrack(); };
+            row.querySelector('.timestamp').onclick = () => { video.currentTime = s.startTimeSeconds; video.play(); };
+            editor.appendChild(row);
+        });
+    }
+
+    function updateTrack() {
+        const vtt = "WEBVTT\n\n" + subData.map(s => `${s.start.replace(',','.')} --> ${s.end.replace(',','.')}\n${s.text}`).join('\n\n');
+        document.getElementById('mainTrack').src = URL.createObjectURL(new Blob([vtt], {type:'text/vtt'}));
+    }
+
+    document.getElementById('subInput').onchange = (e) => {
+        const file = e.target.files[0]; originalFormat = file.name.split('.').pop().toLowerCase();
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            // REMOVED automatic processing here.
+            // Just parsing now.
+            if(originalFormat === 'ass') parseASS(ev.target.result); else parseSRT(ev.target.result);
+            
+            // Check if toggle is already on (rare, but possible if reloading file)
+            if(autoReplaceToggle.checked) {
+                subData.forEach(s => s.text = processSubtitles(s.originalText));
+            }
+
+            calculateAnchorAreas(); renderEditor(); updateTrack();
+            document.getElementById('download-btn').style.display = 'block';
+        };
+        reader.readAsText(file);
+    };
+
+    document.getElementById('videoInput').onchange = (e) => { if(e.target.files[0]) video.src = URL.createObjectURL(e.target.files[0]); };
+    document.getElementById('download-btn').onclick = () => {
+        let out = "";
+        if(originalFormat === 'ass') {
+            out = "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
+            subData.forEach(s => out += `Dialogue: 0,${s.start},${s.end},Default,,0,0,0,,${s.text.replace(/\n/g,'\\N')}\n`);
+        } else { subData.forEach((s, i) => out += `${i+1}\n${s.start} --> ${s.end}\n${s.text}\n\n`); }
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([out])); a.download = `edited.${originalFormat}`; a.click();
+    };
+
+    function quickSearch(word) { searchInput.value = word; document.getElementById('search-dropdown').style.display = 'none'; performSearch(); }
+    
+    anchorToggle.onchange = performSearch;
+    strictToggle.onchange = performSearch;
+
+    document.getElementById('nextBtn').onclick = () => navigateSearch('next');
+    document.getElementById('prevBtn').onclick = () => navigateSearch('prev');
+    searchInput.oninput = performSearch;
+    searchInput.onfocus = () => document.getElementById('search-dropdown').style.display = 'flex';
+    document.addEventListener('mousedown', (e) => { 
+        if(!document.getElementById('search-wrapper').contains(e.target)) document.getElementById('search-dropdown').style.display = 'none'; 
+        if(!quickList.contains(e.target)) quickList.style.display = 'none'; 
+    });
+
+    function openShinModal() {
+        shinIndices = []; subData.forEach((s, i) => { if (s.text.includes('ရှင်')) shinIndices.push(i); });
+        if (shinIndices.length === 0) return alert("No 'ရှင်' found!");
+        currentCardIdx = 0; selectedIndices.clear(); renderCards();
+        shinModal.style.display = 'flex'; updateCardView();
+    }
+
+    function renderCards() {
+        cardContainer.innerHTML = '';
+        shinIndices.forEach((subIdx, i) => {
+            const s = subData[subIdx];
+            const card = document.createElement('div');
+            card.className = 'shin-card unselected-card'; card.id = `card-${i}`;
+            card.innerHTML = `<div class="card-meta">Line ${subIdx + 1} | ${s.start}</div>
+                <div class="card-text">${s.text.replace(/ရှင်/g, '<span class="shin-highlight">ရှင်</span>')}</div>
+                <textarea class="card-edit-box" data-index="${subIdx}">${s.text}</textarea><div class="selection-indicator"></div>`;
+            cardContainer.appendChild(card);
+        });
+    }
+
+    function updateCardView() {
+        document.querySelectorAll('.shin-card').forEach(c => c.classList.remove('active'));
+        document.getElementById(`card-${currentCardIdx}`).classList.add('active');
+        document.getElementById('shin-counter').textContent = `${currentCardIdx + 1} / ${shinIndices.length}`;
+        video.currentTime = subData[shinIndices[currentCardIdx]].startTimeSeconds;
+    }
+
+    function applyShinChanges() {
+        selectedIndices.forEach(idx => { 
+            // We update text
+            subData[idx].text = subData[idx].text.replace(/ရှင်/g, "နင်"); 
+            // We optionally update originalText so this change persists even if you toggle Auto Pronoun off/on later
+            subData[idx].originalText = subData[idx].text; 
+        });
+        closeShinModal(); renderEditor(); updateTrack();
+    }
+
+    function closeShinModal() { shinModal.style.display = 'none'; }
+</script>
+</body>
+</html>
